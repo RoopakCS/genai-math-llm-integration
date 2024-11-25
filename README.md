@@ -3,13 +3,13 @@
 ### AIM:
 To design and implement a Python function for calculating the volume of a cylinder, integrate it with a chat completion system utilizing the function-calling feature of a large language model (LLM).
 
-## THEORY:
+### THEORY:
 The system combines:
 1. **Mathematical Component**: Uses the formula V = πr²h for cylinder volume calculation
 2. **AI Component**: Utilizes Google's Gemini model for natural language processing
 3. **Integration Layer**: Connects the AI understanding with mathematical computation
 
-## ALGORITHM:
+### ALGORITHM:
 1. Initialize Gemini AI and configure API key
 2. Accept natural language input from user
 3. Process query through Gemini to extract parameters
@@ -17,7 +17,7 @@ The system combines:
 5. Format and display results
 6. Handle any errors gracefully
 
-## PROGRAM:
+### PROGRAM:
 ```python
 import math
 from typing import Dict, Any
@@ -143,3 +143,9 @@ if __name__ == "__main__":
 ![alt text](Image.png)
 
 ### RESULT:
+The experiment successfully demonstrated:
+- Integration of Gemini AI with mathematical calculations
+- Accurate parameter extraction from natural language
+- Precise volume calculations with appropriate unit handling
+- Robust error management
+- Interactive user interface
