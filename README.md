@@ -6,145 +6,123 @@ To design and implement a Python function for calculating the volume of a cylind
 ### THEORY:
 The system combines:
 1. **Mathematical Component**: Uses the formula V = πr²h for cylinder volume calculation
-2. **AI Component**: Utilizes Google's Gemini model for natural language processing
+2. **AI Component**: Utilizes OpenAI's gpt-4-0613 model
 3. **Integration Layer**: Connects the AI understanding with mathematical computation
 
 ### ALGORITHM:
-1. Initialize Gemini AI and configure API key
-2. Accept natural language input from user
-3. Process query through Gemini to extract parameters
-4. Calculate cylinder volume using extracted parameters
-5. Format and display results
-6. Handle any errors gracefully
+1. **Initialize the LLM System**:
+   - Configure the OpenAI API.
+   - Define the function schema for `calculate_cylinder_volume`, including its name, description, and parameter requirements.
+
+2. **User Input**:
+   - Receive a natural language query from the user.
+
+3. **Call LLM for Chat Completion**:
+   - Pass the user query to the LLM along with the function schema.
+   - Set `function_call="auto"` to allow the LLM to decide if the function should be invoked.
+
+4. **Check LLM Response**:
+   - If the LLM suggests a function call:
+     - Extract the function name and arguments from the response.
+   - Else:
+     - Generate a direct response from the LLM (no function required).
+
+5. **Execute Function**:
+   - Parse the arguments from the LLM's suggested function call.
+   - Call the `calculate_cylinder_volume(radius, height)` function.
+   - Compute the volume using the formula:
+    - `volume = math.pi * radius**2 * height`
+
+6. **Return Result to LLM**:
+   - Create a message in the format of a function's response.
+   - Pass this message to the LLM for it to generate a final natural language response.
+
+7. **Generate Final Response**:
+   - The LLM integrates the calculated result into a user-friendly message.
+
+8. **Output the Response**:
+   - Display the final response to the user.
 
 ### PROGRAM:
 ```python
-import math
-from typing import Dict, Any
-import google.generativeai as genai
-import json
+import os
+import openai
 
-# Configuration
-GOOGLE_API_KEY = "your-api-key-here"  
-genai.configure(api_key=GOOGLE_API_KEY)
+from dotenv import load_dotenv, find_dotenv
+_ = load_dotenv(find_dotenv()) # read local .env file
+openai.api_key = os.environ['OPENAI_API_KEY']
 
-def calculate_cylinder_volume(radius: float, height: float) -> float:
-    
-    return math.pi * (radius ** 2) * height
+def calculate_cylinder_volume(radius, height):
+    """Calculate the volume of a cylinder given its radius and height."""
+    import math
+    return math.pi * radius**2 * height
+function_schema = {
+    "name": "calculate_cylinder_volume",
+    "description": "Calculate the volume of a cylinder given its radius and height",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "radius": {
+                "type": "number",
+                "description": "The radius of the cylinder base",
+            },
+            "height": {
+                "type": "number",
+                "description": "The height of the cylinder",
+            },
+        },
+        "required": ["radius", "height"],
+    },
+}
 
-def create_gemini_prompt(user_input: str) -> str:
-    
-    return f"""
-    Extract the radius and height values from the following query about a cylinder.
-    Return only a JSON object with 'radius' and 'height' as keys and their values in meters.
-    
-    Query: {user_input}
-    
-    Expected format:
-    {{"radius": number, "height": number}}
-    """
+def chat_with_llm(user_input):
+    # OpenAI API call for chat completion
+    response = openai.ChatCompletion.create(
+        model="gpt-4-0613",  # Function-calling supported model
+        messages=[{"role": "user", "content": user_input}],
+        functions=[function_schema],
+        function_call="auto",  # Let the LLM decide when to use the function
+    )
 
-def parse_gemini_response(response_text: str) -> Dict[str, float]:
-    """
-    Parse Gemini's response to extract radius and height values.
-    
-    Args:
-        response_text (str): Response from Gemini model
-    
-    Returns:
-        Dict[str, float]: Extracted parameters
-    """
-    try:
-        # Find the JSON object in the response
-        start_idx = response_text.find('{')
-        end_idx = response_text.rfind('}') + 1
-        json_str = response_text[start_idx:end_idx]
-        
-        # Parse the JSON object
-        params = json.loads(json_str)
-        
-        # Validate required keys
-        if 'radius' not in params or 'height' not in params:
-            raise ValueError("Missing required parameters in response")
-            
-        return {
-            'radius': float(params['radius']),
-            'height': float(params['height'])
-        }
-    except Exception as e:
-        raise ValueError(f"Failed to parse Gemini response: {str(e)}")
+    # Check if a function call is needed
+    if response.choices[0].message.get("function_call"):
+        function_call = response.choices[0].message["function_call"]
+        # Extract arguments
+        arguments = eval(function_call["arguments"])  # Use safe parsing methods in production
+        radius = arguments["radius"]
+        height = arguments["height"]
 
-def process_user_query(user_input: str) -> Dict[str, Any]:
-    
-    try:
-        # Initialize Gemini model
-        model = genai.GenerativeModel('gemini-pro')
-        
-        # Create and send prompt to Gemini
-        prompt = create_gemini_prompt(user_input)
-        response = model.generate_content(prompt)
-        
-        # Parse parameters from response
-        parameters = parse_gemini_response(response.text)
-        
-        # Calculate the volume
-        volume = calculate_cylinder_volume(parameters['radius'], parameters['height'])
-        
-        return {
-            "success": True,
-            "volume": volume,
-            "units": "cubic meters",
-            "input_parameters": parameters
-        }
-    
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        # Calculate volume
+        volume = calculate_cylinder_volume(radius, height)
 
-def format_volume(volume: float) -> str:
-   
-    if volume >= 1:
-        return f"{volume:.2f} cubic meters"
-    else:
-        return f"{volume * 1000:.2f} cubic centimeters"
-
-def main():
+        # Send the result back to the LLM for a final response
+        response = openai.ChatCompletion.create(
+            model="gpt-4-0613",
+            messages=[
+                {"role": "user", "content": user_input},
+                response.choices[0].message,  # Include the function call
+                {
+                    "role": "function",
+                    "name": "calculate_cylinder_volume",
+                    "content": str(volume),
+                },
+            ],
+        )
     
-    print("=== Cylinder Volume Calculator with Gemini Integration ===\n")
-    print("Enter 'quit' to exit\n")
+    return response.choices[0].message["content"]
     
-    while True:
-        user_input = input("Enter your query (e.g., 'Calculate volume of cylinder with radius 3m and height 5m'): ")
-        
-        if user_input.lower() == 'quit':
-            break
-            
-        result = process_user_query(user_input)
-        
-        if result["success"]:
-            volume_str = format_volume(result["volume"])
-            print(f"\nResults:")
-            print(f"- Volume: {volume_str}")
-            print(f"- Dimensions used:")
-            print(f"  * Radius: {result['input_parameters']['radius']} meters")
-            print(f"  * Height: {result['input_parameters']['height']} meters")
-        else:
-            print(f"\nError: {result['error']}")
-        
-        print("\n" + "-" * 50 + "\n")
-
-if __name__ == "__main__":
-    main()
+# Example interaction
+user_input = "What is the volume of a cylinder with radius 3 and height 5?"
+output = chat_with_llm(user_input)
+print(output)
 ```
 
 ### OUTPUT:
-![alt text](Image.png)
+![alt text](Output.png)
 
 ### RESULT:
 The experiment successfully demonstrated:
-- Integration of Gemini AI with mathematical calculations
+- Integration of Open AI with mathematical calculations
 - Accurate parameter extraction from natural language
 - Precise volume calculations with appropriate unit handling
 - Robust error management
